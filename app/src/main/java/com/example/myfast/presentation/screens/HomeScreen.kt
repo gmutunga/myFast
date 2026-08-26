@@ -189,7 +189,7 @@ fun HomeScreen() {
             onGoalReachedDialogDismiss = { showGoalReachedDialog = false },
             onEditStartTime = {
                 val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-                pickerDate = startDateTime.toLocalDate()
+                pickerDate = LocalDate.now(ZoneId.systemDefault())
                 pickerHour = startDateTime.hour
                 pickerMinute = startDateTime.minute
                 editingStartTime = true
@@ -198,7 +198,7 @@ fun HomeScreen() {
             onEditEndTime = {
                 val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
                 val endDateTime = startDateTime.plusSeconds(goalSeconds.toLong())
-                pickerDate = endDateTime.toLocalDate()
+                pickerDate = LocalDate.now(ZoneId.systemDefault())
                 pickerHour = endDateTime.hour
                 pickerMinute = endDateTime.minute
                 editingStartTime = false
@@ -327,6 +327,9 @@ fun HomeScreen() {
     // Time Picker Dialog
     if (showTimePicker) {
         val today = LocalDate.now(ZoneId.systemDefault())
+        val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+        val startDate = startDateTime.toLocalDate()
+        val startHour = startDateTime.hour
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
             title = {
@@ -350,14 +353,17 @@ fun HomeScreen() {
                     ) {
                         for (i in -10..10) {
                             val date = pickerDate.plusDays(i.toLong())
+                            val isDisabled = !editingStartTime && date.isBefore(startDate)
                             Button(
-                                onClick = { pickerDate = date },
+                                onClick = { if (!isDisabled) pickerDate = date },
+                                enabled = !isDisabled,
                                 modifier = Modifier
                                     .width(55.dp)
                                     .height(28.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (date == pickerDate) MaterialTheme.colorScheme.primary 
-                                                   else MaterialTheme.colorScheme.surface
+                                                   else MaterialTheme.colorScheme.surface,
+                                    disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
                                 ),
                                 shape = RoundedCornerShape(3.dp),
                                 contentPadding = PaddingValues(2.dp)
@@ -365,7 +371,9 @@ fun HomeScreen() {
                                 Text(
                                     date.format(DateTimeFormatter.ofPattern("MMM d")),
                                     fontSize = 8.sp,
-                                    color = if (date == pickerDate) Color.White else MaterialTheme.colorScheme.onSurface
+                                    color = if (date == pickerDate) Color.White else MaterialTheme.colorScheme.onSurface.copy(
+                                        alpha = if (isDisabled) 0.5f else 1f
+                                    )
                                 )
                             }
                         }
@@ -380,14 +388,17 @@ fun HomeScreen() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         for (hour in 0..23) {
+                            val isDisabled = !editingStartTime && pickerDate == startDate && hour < startHour
                             Button(
-                                onClick = { pickerHour = hour },
+                                onClick = { if (!isDisabled) pickerHour = hour },
+                                enabled = !isDisabled,
                                 modifier = Modifier
                                     .width(40.dp)
                                     .height(28.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (hour == pickerHour) MaterialTheme.colorScheme.primary 
-                                                   else MaterialTheme.colorScheme.surface
+                                                   else MaterialTheme.colorScheme.surface,
+                                    disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
                                 ),
                                 shape = RoundedCornerShape(3.dp),
                                 contentPadding = PaddingValues(2.dp)
@@ -395,7 +406,9 @@ fun HomeScreen() {
                                 Text(
                                     "%02d".format(hour),
                                     fontSize = 8.sp,
-                                    color = if (hour == pickerHour) Color.White else MaterialTheme.colorScheme.onSurface
+                                    color = if (hour == pickerHour) Color.White else MaterialTheme.colorScheme.onSurface.copy(
+                                        alpha = if (isDisabled) 0.5f else 1f
+                                    )
                                 )
                             }
                         }
@@ -445,24 +458,28 @@ fun HomeScreen() {
             confirmButton = {
                 Button(
                     onClick = {
-                        showTimePicker = false
                         val selectedDateTime = LocalDateTime.of(pickerDate, java.time.LocalTime.of(pickerHour, pickerMinute))
                         val zoneId = ZoneId.systemDefault()
                         val selectedInstant = selectedDateTime.atZone(zoneId).toInstant()
                         val now = Instant.now()
+                        val startInstant = Instant.ofEpochMilli(fastStartTime)
                         
                         if (editingStartTime) {
                             fastStartTime = selectedInstant.toEpochMilli()
                             val elapsedMillis = now.toEpochMilli() - selectedInstant.toEpochMilli()
                             elapsedSeconds = maxOf(0, (elapsedMillis / 1000).toInt())
                         } else {
-                            val startInstant = Instant.ofEpochMilli(fastStartTime)
+                            if (selectedInstant.isBefore(startInstant)) {
+                                return@Button
+                            }
                             val newGoal = java.time.temporal.ChronoUnit.SECONDS.between(
                                 startInstant,
                                 selectedInstant
                             ).toInt()
                             goalSeconds = maxOf(0, newGoal)
                         }
+                        
+                        showTimePicker = false
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
