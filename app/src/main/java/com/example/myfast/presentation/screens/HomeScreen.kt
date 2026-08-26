@@ -656,6 +656,9 @@ fun FastingAppTimerScreen(
         0f
     }
     val remainingSeconds = maxOf(0, ((endTimeMillis - nowMillis) / 1000).toInt())
+    val fastedDuration = remember(currentElapsedSeconds) {
+        formatDuration(currentElapsedSeconds)
+    }
     
     // Calculate start and end times from the recorded start timestamp.
     val zoneId = ZoneId.systemDefault()
@@ -739,23 +742,25 @@ fun FastingAppTimerScreen(
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
 
-                    val totalHours = goalSeconds / 3600f
-                    val dropHours = listOf(0f, 2f, 5f, 8f, 12f)
+                    if (!isFastingStarted) {
+                        val totalHours = goalSeconds / 3600f
+                        val dropHours = listOf(0f, 2f, 5f, 8f, 12f)
 
-                    dropHours.forEach { hours ->
-                        if (hours <= totalHours) {
-                            val progressAtHour = (hours / totalHours) * 360f
-                            val angle = -90f + progressAtHour
-                            val rad = Math.toRadians(angle.toDouble())
-                            val dropRadius = radius - strokeWidth / 3
-                            val dropX = centerX + dropRadius * cos(rad).toFloat()
-                            val dropY = centerY + dropRadius * sin(rad).toFloat()
+                        dropHours.forEach { hours ->
+                            if (hours <= totalHours) {
+                                val progressAtHour = (hours / totalHours) * 360f
+                                val angle = -90f + progressAtHour
+                                val rad = Math.toRadians(angle.toDouble())
+                                val dropRadius = radius - strokeWidth / 3
+                                val dropX = centerX + dropRadius * cos(rad).toFloat()
+                                val dropY = centerY + dropRadius * sin(rad).toFloat()
 
-                            drawCircle(
-                                color = Color(0xFF2196F3),
-                                radius = 12.dp.toPx(),
-                                center = Offset(dropX, dropY)
-                            )
+                                drawCircle(
+                                    color = Color(0xFF2196F3),
+                                    radius = 12.dp.toPx(),
+                                    center = Offset(dropX, dropY)
+                                )
+                            }
                         }
                     }
                 }
@@ -782,7 +787,7 @@ fun FastingAppTimerScreen(
                                 color = circleTextColor
                             )
                             Text(
-                                "${currentElapsedSeconds / 3600}h",
+                                fastedDuration,
                                 fontSize = 48.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = circleTextColor
@@ -843,7 +848,7 @@ fun FastingAppTimerScreen(
                                     color = onSurfaceVariantColor
                                 )
                                 Text(
-                                    "${currentElapsedSeconds / 3600}h",
+                                    fastedDuration,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = circleTextColor
@@ -852,7 +857,7 @@ fun FastingAppTimerScreen(
                         }
                     }
                 
-                if (isFastingStarted && goalSeconds > 0) {
+                if (!isFastingStarted && goalSeconds > 0) {
                     val totalHours = goalSeconds / 3600f
                     val dropHours = listOf(0f, 2f, 5f, 8f, 12f)
                     val strokeWidth = 20f
