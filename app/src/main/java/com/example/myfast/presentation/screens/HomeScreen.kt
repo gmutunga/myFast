@@ -121,15 +121,17 @@ fun HomeScreen() {
     }
     
     // Timer update
-    LaunchedEffect(isTimerActive) {
+    LaunchedEffect(isTimerActive, fastStartTime, goalSeconds) {
         while (isTimerActive) {
-            delay(1000)
-            elapsedSeconds++
-            if (elapsedSeconds >= goalSeconds && !goalReached) {
+            val now = System.currentTimeMillis()
+            elapsedSeconds = maxOf(0, ((now - fastStartTime) / 1000).toInt())
+            val hasStarted = now >= fastStartTime
+            val hasReachedGoal = hasStarted && now >= fastStartTime + goalSeconds * 1000L
+            if (hasReachedGoal && !goalReached) {
                 goalReached = true
                 showGoalReachedDialog = true
-                // Timer keeps running, user can end manually
             }
+            delay(1000)
         }
     }
     
@@ -324,6 +326,7 @@ fun HomeScreen() {
     
     // Time Picker Dialog
     if (showTimePicker) {
+        val today = LocalDate.now(ZoneId.systemDefault())
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
             title = {
@@ -334,10 +337,9 @@ fun HomeScreen() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(150.dp),
-                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Date Column (scrollable)
                     Column(
                         modifier = Modifier
                             .weight(1.2f)
@@ -369,7 +371,6 @@ fun HomeScreen() {
                         }
                     }
                     
-                    // Hour Column (scrollable)
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -400,7 +401,6 @@ fun HomeScreen() {
                         }
                     }
                     
-                    // Minute Column (scrollable)
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -452,13 +452,10 @@ fun HomeScreen() {
                         val now = Instant.now()
                         
                         if (editingStartTime) {
-                            // Update start time
                             fastStartTime = selectedInstant.toEpochMilli()
-                            // Calculate elapsed from start time to now
                             val elapsedMillis = now.toEpochMilli() - selectedInstant.toEpochMilli()
                             elapsedSeconds = maxOf(0, (elapsedMillis / 1000).toInt())
                         } else {
-                            // Update end time (goal)
                             val startInstant = Instant.ofEpochMilli(fastStartTime)
                             val newGoal = java.time.temporal.ChronoUnit.SECONDS.between(
                                 startInstant,
@@ -477,6 +474,7 @@ fun HomeScreen() {
         )
     }
 }
+
 
 @Composable
 fun FastingAppHomeScreen(
@@ -641,8 +639,16 @@ fun FastingAppTimerScreen(
     onEditStartTime: () -> Unit = {},
     onEditEndTime: () -> Unit = {}
 ) {
-    val progressPercent = minOf(1f, elapsedSeconds.toFloat() / goalSeconds)
-    val remainingSeconds = maxOf(0, goalSeconds - elapsedSeconds)
+    val nowMillis = System.currentTimeMillis()
+    val isFastingStarted = nowMillis >= fastStartTime
+    val endTimeMillis = fastStartTime + goalSeconds * 1000L
+    val currentElapsedSeconds = maxOf(0, ((nowMillis - fastStartTime) / 1000).toInt())
+    val progressPercent = if (goalSeconds > 0) {
+        minOf(1f, currentElapsedSeconds.toFloat() / goalSeconds)
+    } else {
+        0f
+    }
+    val remainingSeconds = maxOf(0, ((endTimeMillis - nowMillis) / 1000).toInt())
     
     // Calculate start and end times from the recorded start timestamp.
     val zoneId = ZoneId.systemDefault()
@@ -686,17 +692,14 @@ fun FastingAppTimerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            val isFastingStarted = elapsedSeconds >= 0
-            
             Spacer(modifier = Modifier.height(20.dp))
             
-            // Large circle timer with clickable water drops inside - only show if fasting has started
-            if (isFastingStarted) {
-                Box(
-                    modifier = Modifier
-                        .size(280.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+            // Large circle timer with clickable water drops inside
+            Box(
+                modifier = Modifier
+                    .size(280.dp),
+                contentAlignment = Alignment.Center
+            ) {
                     Canvas(
                         modifier = Modifier
                             .fillMaxSize()
@@ -774,171 +777,129 @@ fun FastingAppTimerScreen(
                     }
                 }
                 
-                // Time display inside circle
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // Show large label on top, small time remaining on bottom - toggle with arrow
-                    if (!isFastingStarted) {
-                        // Fasting not started yet
-                        Text(
-                            "Fasting not started",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = onBackgroundColor
-                        )
-                        Text(
-                            formatSeconds(0L),
-                            fontSize = 48.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = onBackgroundColor
-                        )
-                    } else if (!showRemainingTime) {
-                        // Large "Fasting for" at top
-                        Text(
-                            "Fasting for",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = onBackgroundColor
-                        )
-                        Text(
-                            formatSeconds(elapsedSeconds.toLong()),
-                            fontSize = 48.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = onBackgroundColor
-                        )
-                    } else {
-                        // Large "Time remaining" at top
-                        Text(
-                            "Time remaining",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = onBackgroundColor
-                        )
-                        Text(
-                            String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
-                            fontSize = 48.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = onBackgroundColor
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(6.dp))
-                    
-                    // Toggle arrow INSIDE the circle
-                    if (isFastingStarted) {
-                        Text(
-                            "⇅",
-                            fontSize = 24.sp,
-                            color = Color(0xFF4CAF50),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .clickable { onToggleTimeView() }
-                                .padding(2.dp)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(6.dp))
-                    
-                    // Small time display at bottom (swaps with top)
-                    if (isFastingStarted) {
-                        if (!showRemainingTime) {
-                            // Show small "Time remaining" at bottom
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        if (!isFastingStarted) {
+                            // Fasting not started yet
                             Text(
-                                "until fast ends",
-                                fontSize = 9.sp,
-                                color = onSurfaceVariantColor
+                                "Fasting not started",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = onBackgroundColor
+                            )
+                        } else if (!showRemainingTime) {
+                            // Large "Fasting for" at top
+                            Text(
+                                "Fasting for",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = onBackgroundColor
                             )
                             Text(
-                                String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                "${currentElapsedSeconds / 3600}h",
+                                fontSize = 48.sp,
+                                fontWeight = FontWeight.ExtraBold,
                                 color = onBackgroundColor
                             )
                         } else {
-                            // Show small "Fasting for" at bottom
+                            // Large "Time remaining" at top
                             Text(
-                                "fasting for",
-                                fontSize = 9.sp,
-                                color = onSurfaceVariantColor
+                                "Time remaining",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = onBackgroundColor
                             )
                             Text(
-                                formatSeconds(elapsedSeconds.toLong()),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
+                                fontSize = 48.sp,
+                                fontWeight = FontWeight.ExtraBold,
                                 color = onBackgroundColor
                             )
                         }
-                    }
-                }
-                
-                // Clickable dots overlay
-                val totalHours = goalSeconds / 3600f
-                val dropHours = listOf(0f, 2f, 5f, 8f, 12f)
-                val strokeWidth = 20f  // Match canvas stroke width
-                val radius = 140f - strokeWidth / 2
-                val centerX = 140f
-                val centerY = 140f
-                
-                dropHours.forEachIndexed { index, hours ->
-                    if (hours <= totalHours) {
-                        val progressAtHour = (hours / totalHours) * 360f
-                        val angle = -90f + progressAtHour
-                        val rad = Math.toRadians(angle.toDouble())
                         
-                        val dropRadius = radius - strokeWidth / 3  // Inside the stroke
-                        val dropX = centerX + dropRadius * cos(rad).toFloat()
-                        val dropY = centerY + dropRadius * sin(rad).toFloat()
+                        Spacer(modifier = Modifier.height(6.dp))
                         
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)  // Larger click area
-                                .offset(
-                                    x = (dropX - 14).dp,
-                                    y = (dropY - 14).dp
+                        // Toggle arrow INSIDE the circle
+                        if (isFastingStarted) {
+                            Text(
+                                "⇅",
+                                fontSize = 24.sp,
+                                color = Color(0xFF4CAF50),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .clickable { onToggleTimeView() }
+                                    .padding(2.dp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(6.dp))
+                        
+                        // Small time display at bottom (swaps with top)
+                        if (isFastingStarted) {
+                            if (!showRemainingTime) {
+                                // Show small "Time remaining" at bottom
+                                Text(
+                                    "until fast ends",
+                                    fontSize = 9.sp,
+                                    color = onSurfaceVariantColor
                                 )
-                                .clickable { selectedStageIndex = index }
-                                .padding(2.dp)
-                        )
+                                Text(
+                                    String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = onBackgroundColor
+                                )
+                            } else {
+                                // Show small "Fasting for" at bottom
+                                Text(
+                                    "fasting for",
+                                    fontSize = 9.sp,
+                                    color = onSurfaceVariantColor
+                                )
+                                Text(
+                                    "${currentElapsedSeconds / 3600}h",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = onBackgroundColor
+                                )
+                            }
+                        }
                     }
-                }
-            }
-            } else {
-                // Show upcoming fast info when fast hasn't started
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        "Fast Scheduled",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = onBackgroundColor
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    val (startDate, startTime) = formatTimePickerDateTime(startDateTime)
-                    Text(
-                        "Starts",
-                        fontSize = 14.sp,
-                        color = onSurfaceVariantColor
-                    )
-                    Text(
-                        startDate,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = onBackgroundColor
-                    )
-                    Text(
-                        startTime,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = onBackgroundColor
-                    )
+                
+                // Clickable dots overlay - only show when fasting has started
+                if (isFastingStarted && goalSeconds > 0) {
+                    val totalHours = goalSeconds / 3600f
+                    val dropHours = listOf(0f, 2f, 5f, 8f, 12f)
+                    val strokeWidth = 20f
+                    val radius = 140f - strokeWidth / 2
+                    val centerX = 140f
+                    val centerY = 140f
+                    
+                    dropHours.forEachIndexed { index, hours ->
+                        if (hours <= totalHours) {
+                            val progressAtHour = (hours / totalHours) * 360f
+                            val angle = -90f + progressAtHour
+                            val rad = Math.toRadians(angle.toDouble())
+                            
+                            val dropRadius = radius - strokeWidth / 3
+                            val dropX = centerX + dropRadius * cos(rad).toFloat()
+                            val dropY = centerY + dropRadius * sin(rad).toFloat()
+                            
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .offset(
+                                        x = (dropX - 14).dp,
+                                        y = (dropY - 14).dp
+                                    )
+                                    .clickable { selectedStageIndex = index }
+                                    .padding(2.dp)
+                            )
+                        }
+                    }
                 }
             }
             
