@@ -2,6 +2,7 @@ package com.example.myfast.presentation.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -89,6 +91,13 @@ fun HomeScreen() {
     var showEndFastConfirm by remember { mutableStateOf(false) }  // First step: End Fast or Cancel
     var showSaveDeleteDialog by remember { mutableStateOf(false) }  // Second step: Save or Delete
     
+    // Time picker states
+    var showTimePicker by remember { mutableStateOf(false) }
+    var editingStartTime by remember { mutableStateOf(true) }  // true for start, false for end
+    var pickerDate by remember { mutableStateOf(LocalDate.now()) }
+    var pickerHour by remember { mutableStateOf(0) }
+    var pickerMinute by remember { mutableStateOf(0) }
+    
     // Initialize lastFastEndTime from last recorded fast
     LaunchedEffect(Unit) {
         val fastRecords = repository.getFastRecords()
@@ -163,7 +172,24 @@ fun HomeScreen() {
             fastStartTime = fastStartTime,
             goalReached = goalReached,
             showGoalReachedDialog = showGoalReachedDialog,
-            onGoalReachedDialogDismiss = { showGoalReachedDialog = false }
+            onGoalReachedDialogDismiss = { showGoalReachedDialog = false },
+            onEditStartTime = {
+                val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+                pickerDate = startDateTime.toLocalDate()
+                pickerHour = startDateTime.hour
+                pickerMinute = startDateTime.minute
+                editingStartTime = true
+                showTimePicker = true
+            },
+            onEditEndTime = {
+                val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+                val endDateTime = startDateTime.plusSeconds(goalSeconds.toLong())
+                pickerDate = endDateTime.toLocalDate()
+                pickerHour = endDateTime.hour
+                pickerMinute = endDateTime.minute
+                editingStartTime = false
+                showTimePicker = true
+            }
         )
     } else {
         FastingAppHomeScreen(
@@ -279,6 +305,172 @@ fun HomeScreen() {
                     )
                 ) {
                     Text("Save")
+                }
+            }
+        )
+    }
+    
+    // Time Picker Dialog
+    if (showTimePicker) {
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = {
+                Text(if (editingStartTime) "Edit Start Time" else "Edit End Time", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Date Column (scrollable)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Date", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        for (i in -10..10) {
+                            val date = pickerDate.plusDays(i.toLong())
+                            Button(
+                                onClick = { pickerDate = date },
+                                modifier = Modifier
+                                    .width(60.dp)
+                                    .height(32.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (date == pickerDate) MaterialTheme.colorScheme.primary 
+                                                   else MaterialTheme.colorScheme.surface
+                                ),
+                                shape = RoundedCornerShape(4.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    date.format(DateTimeFormatter.ofPattern("MMM d")),
+                                    fontSize = 9.sp,
+                                    color = if (date == pickerDate) Color.White else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    // Hour Column (scrollable)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Hour", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        for (hour in 0..23) {
+                            Button(
+                                onClick = { pickerHour = hour },
+                                modifier = Modifier
+                                    .width(50.dp)
+                                    .height(32.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (hour == pickerHour) MaterialTheme.colorScheme.primary 
+                                                   else MaterialTheme.colorScheme.surface
+                                ),
+                                shape = RoundedCornerShape(4.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    "%02d".format(hour),
+                                    fontSize = 9.sp,
+                                    color = if (hour == pickerHour) Color.White else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    // Minute Column (scrollable)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Min", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        for (minute in 0..59) {
+                            Button(
+                                onClick = { pickerMinute = minute },
+                                modifier = Modifier
+                                    .width(50.dp)
+                                    .height(32.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (minute == pickerMinute) MaterialTheme.colorScheme.primary 
+                                                   else MaterialTheme.colorScheme.surface
+                                ),
+                                shape = RoundedCornerShape(4.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    "%02d".format(minute),
+                                    fontSize = 9.sp,
+                                    color = if (minute == pickerMinute) Color.White else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showTimePicker = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showTimePicker = false
+                        val selectedDateTime = LocalDateTime.of(pickerDate, java.time.LocalTime.of(pickerHour, pickerMinute))
+                        val zoneId = ZoneId.systemDefault()
+                        val selectedInstant = selectedDateTime.atZone(zoneId).toInstant()
+                        
+                        if (editingStartTime) {
+                            // Update start time
+                            val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(zoneId).toLocalDateTime()
+                            val endDateTime = startDateTime.plusSeconds(goalSeconds.toLong())
+                            val elapsedMillis = selectedInstant.toEpochMilli() - selectedInstant.toEpochMilli()
+                            val newElapsed = java.time.temporal.ChronoUnit.MILLIS.between(selectedDateTime.atZone(zoneId).toInstant(), endDateTime.atZone(zoneId).toInstant())
+                            
+                            fastStartTime = selectedInstant.toEpochMilli()
+                            elapsedSeconds = ((System.currentTimeMillis() - fastStartTime) / 1000).toInt()
+                        } else {
+                            // Update end time (goal)
+                            val newGoal = java.time.temporal.ChronoUnit.SECONDS.between(
+                                Instant.ofEpochMilli(fastStartTime),
+                                selectedInstant
+                            ).toInt()
+                            goalSeconds = newGoal
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Confirm")
                 }
             }
         )
@@ -444,7 +636,9 @@ fun FastingAppTimerScreen(
     fastStartTime: Long,
     goalReached: Boolean,
     showGoalReachedDialog: Boolean,
-    onGoalReachedDialogDismiss: () -> Unit
+    onGoalReachedDialogDismiss: () -> Unit,
+    onEditStartTime: () -> Unit = {},
+    onEditEndTime: () -> Unit = {}
 ) {
     val progressPercent = minOf(1f, elapsedSeconds.toFloat() / goalSeconds)
     val remainingSeconds = maxOf(0, goalSeconds - elapsedSeconds)
@@ -705,6 +899,7 @@ fun FastingAppTimerScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
+                    modifier = Modifier.clickable { onEditStartTime() },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -728,6 +923,7 @@ fun FastingAppTimerScreen(
                 )
                 
                 Column(
+                    modifier = Modifier.clickable { onEditEndTime() },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
