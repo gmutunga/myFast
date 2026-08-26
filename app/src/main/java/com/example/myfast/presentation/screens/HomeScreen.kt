@@ -30,7 +30,10 @@ import androidx.compose.ui.unit.sp
 import com.example.myfast.data.FastingRepository
 import com.example.myfast.data.UserProfileRepository
 import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.cos
 import kotlin.math.sin
@@ -42,6 +45,17 @@ data class FastingStage(
     val color: Color,
     val description: String
 )
+
+private fun formatFastingDateTime(dateTime: LocalDateTime, today: LocalDate): String {
+    val day = when (dateTime.toLocalDate()) {
+        today -> "Today"
+        today.minusDays(1) -> "Yesterday"
+        today.plusDays(1) -> "Tomorrow"
+        else -> dateTime.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
+    }
+
+    return "$day, ${dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+}
 
 val FASTING_STAGES = listOf(
     FastingStage("Fed State", 0f, 2f, Color(0xFFFF9800), "Body digests food"),
@@ -435,10 +449,13 @@ fun FastingAppTimerScreen(
     val progressPercent = minOf(1f, elapsedSeconds.toFloat() / goalSeconds)
     val remainingSeconds = maxOf(0, goalSeconds - elapsedSeconds)
     
-    // Calculate start and end times
-    val startDateTime = LocalDateTime.now().minusSeconds(elapsedSeconds.toLong())
+    // Calculate start and end times from the recorded start timestamp.
+    val zoneId = ZoneId.systemDefault()
+    val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(zoneId).toLocalDateTime()
     val endDateTime = startDateTime.plusSeconds(goalSeconds.toLong())
-    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val today = LocalDate.now(zoneId)
+    val startTimeLabel = formatFastingDateTime(startDateTime, today)
+    val endTimeLabel = formatFastingDateTime(endDateTime, today)
     
     // State for showing stage details
     var selectedStageIndex by remember { mutableStateOf(-1) }
@@ -696,7 +713,7 @@ fun FastingAppTimerScreen(
                         color = onSurfaceVariantColor
                     )
                     Text(
-                        startDateTime.format(timeFormatter),
+                        startTimeLabel,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = onBackgroundColor
@@ -719,7 +736,7 @@ fun FastingAppTimerScreen(
                         color = onSurfaceVariantColor
                     )
                     Text(
-                        endDateTime.format(timeFormatter),
+                        endTimeLabel,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = onBackgroundColor
