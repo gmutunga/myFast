@@ -132,7 +132,7 @@ fun StatsScreen() {
         ) {
             item {
                 Text(
-                    text = "Statistics",
+                    text = "Dashboard",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
