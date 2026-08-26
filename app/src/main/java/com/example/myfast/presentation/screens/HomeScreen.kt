@@ -59,6 +59,18 @@ private fun formatFastingDateTime(dateTime: LocalDateTime, today: LocalDate): St
     return "$day, ${dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"
 }
 
+private fun formatTimePickerDateTime(dateTime: LocalDateTime): Pair<String, String> {
+    val today = LocalDate.now()
+    val dateStr = when (dateTime.toLocalDate()) {
+        today -> "Today"
+        today.minusDays(1) -> "Yesterday"
+        today.plusDays(1) -> "Tomorrow"
+        else -> dateTime.format(DateTimeFormatter.ofPattern("EEE MMM d"))
+    }
+    val timeStr = dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+    return Pair(dateStr, timeStr)
+}
+
 val FASTING_STAGES = listOf(
     FastingStage("Fed State", 0f, 2f, Color(0xFFFF9800), "Body digests food"),
     FastingStage("Post-Absorptive", 2f, 5f, Color(0xFFFFC107), "Digestion complete"),
@@ -321,45 +333,41 @@ fun HomeScreen() {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp),
-                    horizontalArrangement = Arrangement.Center,
+                        .height(150.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Date Column (scrollable)
                     Column(
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(1.2f)
                             .fillMaxHeight()
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Date", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(8.dp))
                         for (i in -10..10) {
                             val date = pickerDate.plusDays(i.toLong())
                             Button(
                                 onClick = { pickerDate = date },
                                 modifier = Modifier
-                                    .width(60.dp)
-                                    .height(32.dp),
+                                    .width(55.dp)
+                                    .height(28.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (date == pickerDate) MaterialTheme.colorScheme.primary 
                                                    else MaterialTheme.colorScheme.surface
                                 ),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(0.dp)
+                                shape = RoundedCornerShape(3.dp),
+                                contentPadding = PaddingValues(2.dp)
                             ) {
                                 Text(
                                     date.format(DateTimeFormatter.ofPattern("MMM d")),
-                                    fontSize = 9.sp,
+                                    fontSize = 8.sp,
                                     color = if (date == pickerDate) Color.White else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
                     
                     // Hour Column (scrollable)
                     Column(
@@ -370,31 +378,27 @@ fun HomeScreen() {
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Hour", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(8.dp))
                         for (hour in 0..23) {
                             Button(
                                 onClick = { pickerHour = hour },
                                 modifier = Modifier
-                                    .width(50.dp)
-                                    .height(32.dp),
+                                    .width(40.dp)
+                                    .height(28.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (hour == pickerHour) MaterialTheme.colorScheme.primary 
                                                    else MaterialTheme.colorScheme.surface
                                 ),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(0.dp)
+                                shape = RoundedCornerShape(3.dp),
+                                contentPadding = PaddingValues(2.dp)
                             ) {
                                 Text(
                                     "%02d".format(hour),
-                                    fontSize = 9.sp,
+                                    fontSize = 8.sp,
                                     color = if (hour == pickerHour) Color.White else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
                     
                     // Minute Column (scrollable)
                     Column(
@@ -405,24 +409,22 @@ fun HomeScreen() {
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Min", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(8.dp))
                         for (minute in 0..59) {
                             Button(
                                 onClick = { pickerMinute = minute },
                                 modifier = Modifier
-                                    .width(50.dp)
-                                    .height(32.dp),
+                                    .width(40.dp)
+                                    .height(28.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (minute == pickerMinute) MaterialTheme.colorScheme.primary 
                                                    else MaterialTheme.colorScheme.surface
                                 ),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(0.dp)
+                                shape = RoundedCornerShape(3.dp),
+                                contentPadding = PaddingValues(2.dp)
                             ) {
                                 Text(
                                     "%02d".format(minute),
-                                    fontSize = 9.sp,
+                                    fontSize = 8.sp,
                                     color = if (minute == pickerMinute) Color.White else MaterialTheme.colorScheme.onSurface
                                 )
                             }
@@ -903,13 +905,20 @@ fun FastingAppTimerScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "Started at",
-                        fontSize = 12.sp,
+                        "Start",
+                        fontSize = 10.sp,
                         color = onSurfaceVariantColor
                     )
+                    val (startDate, startTime) = formatTimePickerDateTime(startDateTime)
                     Text(
-                        startTimeLabel,
-                        fontSize = 18.sp,
+                        startDate,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = onBackgroundColor
+                    )
+                    Text(
+                        startTime,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = onBackgroundColor
                     )
@@ -918,7 +927,7 @@ fun FastingAppTimerScreen(
                 Divider(
                     modifier = Modifier
                         .width(1.dp)
-                        .height(40.dp),
+                        .height(50.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 
@@ -927,13 +936,20 @@ fun FastingAppTimerScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "Ends at",
-                        fontSize = 12.sp,
+                        "End",
+                        fontSize = 10.sp,
                         color = onSurfaceVariantColor
                     )
+                    val (endDate, endTime) = formatTimePickerDateTime(endDateTime)
                     Text(
-                        endTimeLabel,
-                        fontSize = 18.sp,
+                        endDate,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = onBackgroundColor
+                    )
+                    Text(
+                        endTime,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = onBackgroundColor
                     )
