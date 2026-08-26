@@ -2,7 +2,6 @@ package com.example.myfast.presentation.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -90,17 +89,6 @@ fun HomeScreen() {
     var showEndFastConfirm by remember { mutableStateOf(false) }  // First step: End Fast or Cancel
     var showSaveDeleteDialog by remember { mutableStateOf(false) }  // Second step: Save or Delete
     
-    // Date/Time picker states for starting fast
-    var showDateTimePicker by remember { mutableStateOf(false) }
-    var pendingGoalSeconds by remember { mutableStateOf(0) }
-    var pendingPlanName by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf(LocalDate.now()) }
-    var startHour by remember { mutableStateOf(LocalDateTime.now().hour) }
-    var startMinute by remember { mutableStateOf(LocalDateTime.now().minute) }
-    var endDate by remember { mutableStateOf(LocalDate.now()) }
-    var endHour by remember { mutableStateOf(LocalDateTime.now().hour) }
-    var endMinute by remember { mutableStateOf(LocalDateTime.now().minute) }
-    
     // Initialize lastFastEndTime from last recorded fast
     LaunchedEffect(Unit) {
         val fastRecords = repository.getFastRecords()
@@ -187,17 +175,11 @@ fun HomeScreen() {
                 fastStartTime = System.currentTimeMillis()
             },
             onSelectPlan = { hours, planName ->
-                pendingPlanName = planName
-                pendingGoalSeconds = (hours * 3600).toInt()
-                // Initialize date/time to current time
-                val now = LocalDateTime.now()
-                startDate = now.toLocalDate()
-                startHour = now.hour
-                startMinute = now.minute
-                endDate = now.toLocalDate().plusDays(if (hours >= 24) 1 else 0)
-                endHour = (now.hour + hours) % 24
-                endMinute = now.minute
-                showDateTimePicker = true
+                selectedPlanName = planName
+                goalSeconds = (hours * 3600).toInt()
+                isTimerActive = true
+                elapsedSeconds = 0
+                fastStartTime = System.currentTimeMillis()
             }
         )
     }
@@ -300,249 +282,6 @@ fun HomeScreen() {
                 }
             }
         )
-    }
-    
-    // Date/Time Picker Dialog
-    if (showDateTimePicker) {
-        AlertDialog(
-            onDismissRequest = { showDateTimePicker = false },
-            title = {
-                Text("Set Fast Start & End Time", fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Start Date/Time Section
-                    Text(
-                        "Start Time",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    // Start Date Dropdown
-                    DateDropdown(
-                        label = "Start Date",
-                        selectedDate = startDate,
-                        onDateSelected = { startDate = it }
-                    )
-                    
-                    // Start Time Dropdowns
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TimeDropdown(
-                            label = "Hour",
-                            value = startHour,
-                            maxValue = 23,
-                            onValueSelected = { startHour = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                        TimeDropdown(
-                            label = "Min",
-                            value = startMinute,
-                            maxValue = 59,
-                            onValueSelected = { startMinute = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    // End Date/Time Section
-                    Text(
-                        "End Time",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    // End Date Dropdown
-                    DateDropdown(
-                        label = "End Date",
-                        selectedDate = endDate,
-                        onDateSelected = { endDate = it }
-                    )
-                    
-                    // End Time Dropdowns
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TimeDropdown(
-                            label = "Hour",
-                            value = endHour,
-                            maxValue = 23,
-                            onValueSelected = { endHour = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                        TimeDropdown(
-                            label = "Min",
-                            value = endMinute,
-                            maxValue = 59,
-                            onValueSelected = { endMinute = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            },
-            dismissButton = {
-                Button(
-                    onClick = { showDateTimePicker = false },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDateTimePicker = false
-                        selectedPlanName = pendingPlanName
-                        goalSeconds = pendingGoalSeconds
-                        
-                        // Calculate actual elapsed seconds based on selected times
-                        val startDateTime = LocalDateTime.of(startDate, java.time.LocalTime.of(startHour, startMinute))
-                        val endDateTime = LocalDateTime.of(endDate, java.time.LocalTime.of(endHour, endMinute))
-                        val durationDays = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate)
-                        val elapsedMillis = java.time.temporal.ChronoUnit.MILLIS.between(startDateTime, endDateTime)
-                        
-                        elapsedSeconds = maxOf(0, (elapsedMillis / 1000).toInt())
-                        isTimerActive = true
-                        fastStartTime = System.currentTimeMillis() - (elapsedSeconds * 1000L)
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("Start Fast")
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun DateDropdown(
-    label: String,
-    selectedDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val dateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
-    val displayText = if (selectedDate == LocalDate.now()) "Today" 
-                      else if (selectedDate == LocalDate.now().minusDays(1)) "Yesterday"
-                      else if (selectedDate == LocalDate.now().plusDays(1)) "Tomorrow"
-                      else selectedDate.format(dateFormatter)
-    
-    Button(
-        onClick = { expanded = !expanded },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.secondary
-        ),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Text(displayText, color = MaterialTheme.colorScheme.onSecondary)
-    }
-    
-    if (expanded) {
-        // Simple date dropdown: show last 7 days and next 7 days
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                .padding(8.dp)
-        ) {
-            val dates = (-7..7).map { LocalDate.now().plusDays(it.toLong()) }
-            dates.forEach { date ->
-                val text = if (date == LocalDate.now()) "Today" 
-                          else if (date == LocalDate.now().minusDays(1)) "Yesterday"
-                          else if (date == LocalDate.now().plusDays(1)) "Tomorrow"
-                          else date.format(DateTimeFormatter.ofPattern("MMM d"))
-                
-                Button(
-                    onClick = {
-                        onDateSelected(date)
-                        expanded = false
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (date == selectedDate) MaterialTheme.colorScheme.primary 
-                                        else MaterialTheme.colorScheme.surface
-                    ),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(text, color = if (date == selectedDate) Color.White else MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TimeDropdown(
-    label: String,
-    value: Int,
-    maxValue: Int,
-    onValueSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    
-    Button(
-        onClick = { expanded = !expanded },
-        modifier = modifier
-            .height(48.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.secondary
-        ),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Text("%02d".format(value), color = MaterialTheme.colorScheme.onSecondary)
-    }
-    
-    if (expanded) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                .padding(8.dp)
-                .heightIn(max = 200.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            (0..maxValue).forEach { num ->
-                Button(
-                    onClick = {
-                        onValueSelected(num)
-                        expanded = false
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(36.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (num == value) MaterialTheme.colorScheme.primary 
-                                        else MaterialTheme.colorScheme.surface
-                    ),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text("%02d".format(num), color = if (num == value) Color.White else MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
     }
 }
 
