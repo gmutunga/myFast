@@ -542,7 +542,7 @@ fun FastingAppHomeScreen(
                     "${hours}h ${minutes}m",
                     fontSize = 32.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color.Black
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             } else {
                 Column(
@@ -696,6 +696,7 @@ fun FastingAppTimerScreen(
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
     val onBackgroundColor = MaterialTheme.colorScheme.onBackground
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val circleTextColor = Color.White
     
     Box(
         modifier = Modifier
@@ -805,7 +806,7 @@ fun FastingAppTimerScreen(
                                 "Fasting not started",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = onBackgroundColor
+                                color = circleTextColor
                             )
                         } else if (!showRemainingTime) {
                             // Large "Fasting for" at top
@@ -813,13 +814,13 @@ fun FastingAppTimerScreen(
                                 "Fasting for",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = onBackgroundColor
+                                color = circleTextColor
                             )
                             Text(
                                 "${currentElapsedSeconds / 3600}h",
                                 fontSize = 48.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = onBackgroundColor
+                                color = circleTextColor
                             )
                         } else {
                             // Large "Time remaining" at top
@@ -827,13 +828,13 @@ fun FastingAppTimerScreen(
                                 "Time remaining",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = onBackgroundColor
+                                color = circleTextColor
                             )
                             Text(
                                 String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
                                 fontSize = 48.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = onBackgroundColor
+                                color = circleTextColor
                             )
                         }
                         
@@ -867,7 +868,7 @@ fun FastingAppTimerScreen(
                                     String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = onBackgroundColor
+                                    color = circleTextColor
                                 )
                             } else {
                                 // Show small "Fasting for" at bottom
@@ -880,7 +881,7 @@ fun FastingAppTimerScreen(
                                     "${currentElapsedSeconds / 3600}h",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = onBackgroundColor
+                                    color = circleTextColor
                                 )
                             }
                         }
