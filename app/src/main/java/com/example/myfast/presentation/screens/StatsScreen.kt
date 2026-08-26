@@ -21,8 +21,22 @@ import com.example.myfast.data.WeightLog
 import com.example.myfast.data.WeightRepository
 import com.example.myfast.data.UserProfileRepository
 import com.example.myfast.data.FastingRepository
+import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+
+private enum class FastingChartRange(val label: String, val periodDescription: String) {
+    WEEK("Week", "Last 7 days"),
+    MONTH("Month", "This month"),
+    YEAR("Year", "This year")
+}
+
+private data class FastingChartBucket(
+    val label: String,
+    val startDate: LocalDate,
+    val endDateExclusive: LocalDate
+)
 
 @Composable
 fun StatsScreen() {
@@ -182,6 +196,10 @@ fun StatsScreen() {
                 }
             }
 
+            item {
+                FastingActivityChart(fastRecords)
+            }
+
             // Latest Weight Section
             item {
                 Text(
@@ -236,6 +254,252 @@ fun StatsScreen() {
             }
         }
     }
+}
+
+@Composable
+private fun FastingActivityChart(fastRecords: List<FastRecord>) {
+    var selectedRange by remember { mutableStateOf(FastingChartRange.WEEK) }
+    val today = LocalDate.now()
+    
+    val oldestFastDate = remember(fastRecords) {
+        fastRecords.minByOrNull { it.date }?.date?.toLocalDate()
+    }
+    
+    val buckets = remember(selectedRange, today, oldestFastDate) {
+        fastingChartBuckets(selectedRange, today, oldestFastDate)
+    }
+    val hoursByBucket = remember(fastRecords, buckets) {
+        buckets.map { bucket ->
+            fastRecords.sumOf { record ->
+                record.secondsWithin(bucket.startDate, bucket.endDateExclusive)
+            } / 3600f
+        }
+    }
+    val totalHours = hoursByBucket.sum()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Fasting Activity",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FastingChartRange.entries.forEach { range ->
+                    val selected = range == selectedRange
+                    Button(
+                        onClick = { selectedRange = range },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.background
+                            },
+                            contentColor = if (selected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onBackground
+                            }
+                        ),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        Text(range.label, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = selectedRange.periodDescription,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Total: %.1f h".format(totalHours),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            FastingBarChart(
+                values = hoursByBucket,
+                labels = buckets.map { it.label },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .padding(top = 12.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FastingBarChart(
+    values: List<Float>,
+    labels: List<String>,
+    modifier: Modifier = Modifier
+) {
+    val maximumHours = maxOf(values.maxOrNull() ?: 0f, 1f)
+
+    Column(modifier = modifier) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(
+                    MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
+                    RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 8.dp, vertical = 12.dp)
+        ) {
+            val chartHeight = size.height
+            val chartWidth = size.width
+            val barSlotWidth = chartWidth / values.size
+            val barWidth = barSlotWidth * 0.58f
+
+            repeat(4) { index ->
+                val y = chartHeight * index / 3f
+                drawLine(
+                    color = Color.Gray.copy(alpha = 0.15f),
+                    start = Offset(0f, y),
+                    end = Offset(chartWidth, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+
+            values.forEachIndexed { index, hours ->
+                val barHeight = (hours / maximumHours) * chartHeight
+                val left = index * barSlotWidth + (barSlotWidth - barWidth) / 2f
+                drawRect(
+                    color = Color(0xFF4CAF50),
+                    topLeft = Offset(left, chartHeight - barHeight),
+                    size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            labels.forEach { label ->
+                Text(
+                    text = label,
+                    modifier = Modifier.weight(1f),
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+private fun fastingChartBuckets(
+    range: FastingChartRange,
+    today: LocalDate,
+    oldestFastDate: LocalDate?
+): List<FastingChartBucket> = when (range) {
+    FastingChartRange.WEEK -> (6 downTo 0).map { daysAgo ->
+        val date = today.minusDays(daysAgo.toLong())
+        FastingChartBucket(
+            label = date.format(DateTimeFormatter.ofPattern("MMM d")),
+            startDate = date,
+            endDateExclusive = date.plusDays(1)
+        )
+    }
+
+    FastingChartRange.MONTH -> {
+        val twentyEightDaysAgo = today.minusDays(28)
+        val periodStart = if (oldestFastDate != null && oldestFastDate.isAfter(twentyEightDaysAgo)) {
+            oldestFastDate
+        } else {
+            twentyEightDaysAgo
+        }
+        
+        buildList {
+            var weekStart = periodStart
+            while (weekStart.isBefore(today)) {
+                val weekEndExclusive = minOf(weekStart.plusDays(7), today.plusDays(1))
+                add(
+                    FastingChartBucket(
+                        label = weekStart.format(DateTimeFormatter.ofPattern("MMM d")),
+                        startDate = weekStart,
+                        endDateExclusive = weekEndExclusive
+                    )
+                )
+                weekStart = weekEndExclusive
+            }
+        }
+    }
+
+    FastingChartRange.YEAR -> {
+        val startDate = if (oldestFastDate != null) {
+            val oldestYear = oldestFastDate.year
+            val todayYear = today.year
+            if (oldestYear == todayYear) {
+                oldestFastDate.withDayOfMonth(1)
+            } else {
+                today.minusMonths(11)
+            }
+        } else {
+            today.minusMonths(11)
+        }
+
+        buildList {
+            var monthStart = startDate
+            val monthEnd = today.withDayOfMonth(1)
+            while (monthStart.isBefore(monthEnd) || monthStart == monthEnd) {
+                val monthEndExclusive = monthStart.plusMonths(1)
+                add(
+                    FastingChartBucket(
+                        label = monthStart.format(DateTimeFormatter.ofPattern("MMM")),
+                        startDate = monthStart,
+                        endDateExclusive = monthEndExclusive
+                    )
+                )
+                monthStart = monthEndExclusive
+            }
+        }
+    }
+}
+
+private fun FastRecord.secondsWithin(startDate: LocalDate, endDateExclusive: LocalDate): Long {
+    val periodStart = startDate.atStartOfDay()
+    val periodEnd = endDateExclusive.atStartOfDay()
+    val fastEnd = date.plusSeconds(durationSeconds.toLong())
+    val overlapStart = maxOf(date, periodStart)
+    val overlapEnd = minOf(fastEnd, periodEnd)
+
+    return Duration.between(overlapStart, overlapEnd).seconds.coerceAtLeast(0)
 }
 
 @Composable
