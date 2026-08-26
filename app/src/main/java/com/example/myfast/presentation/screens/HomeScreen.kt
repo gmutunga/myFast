@@ -334,7 +334,7 @@ fun HomeScreen() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(150.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Date Column (scrollable)
@@ -449,23 +449,22 @@ fun HomeScreen() {
                         val selectedDateTime = LocalDateTime.of(pickerDate, java.time.LocalTime.of(pickerHour, pickerMinute))
                         val zoneId = ZoneId.systemDefault()
                         val selectedInstant = selectedDateTime.atZone(zoneId).toInstant()
+                        val now = Instant.now()
                         
                         if (editingStartTime) {
                             // Update start time
-                            val startDateTime = Instant.ofEpochMilli(fastStartTime).atZone(zoneId).toLocalDateTime()
-                            val endDateTime = startDateTime.plusSeconds(goalSeconds.toLong())
-                            val elapsedMillis = selectedInstant.toEpochMilli() - selectedInstant.toEpochMilli()
-                            val newElapsed = java.time.temporal.ChronoUnit.MILLIS.between(selectedDateTime.atZone(zoneId).toInstant(), endDateTime.atZone(zoneId).toInstant())
-                            
                             fastStartTime = selectedInstant.toEpochMilli()
-                            elapsedSeconds = ((System.currentTimeMillis() - fastStartTime) / 1000).toInt()
+                            // Calculate elapsed from start time to now
+                            val elapsedMillis = now.toEpochMilli() - selectedInstant.toEpochMilli()
+                            elapsedSeconds = maxOf(0, (elapsedMillis / 1000).toInt())
                         } else {
                             // Update end time (goal)
+                            val startInstant = Instant.ofEpochMilli(fastStartTime)
                             val newGoal = java.time.temporal.ChronoUnit.SECONDS.between(
-                                Instant.ofEpochMilli(fastStartTime),
+                                startInstant,
                                 selectedInstant
                             ).toInt()
-                            goalSeconds = newGoal
+                            goalSeconds = maxOf(0, newGoal)
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -687,6 +686,8 @@ fun FastingAppTimerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
+            val isFastingStarted = elapsedSeconds >= 0
+            
             Spacer(modifier = Modifier.height(20.dp))
             
             // Large circle timer with clickable water drops inside
@@ -779,7 +780,21 @@ fun FastingAppTimerScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     // Show large label on top, small time remaining on bottom - toggle with arrow
-                    if (!showRemainingTime) {
+                    if (!isFastingStarted) {
+                        // Fasting not started yet
+                        Text(
+                            "Fasting not started",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = onBackgroundColor
+                        )
+                        Text(
+                            formatSeconds(0L),
+                            fontSize = 48.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = onBackgroundColor
+                        )
+                    } else if (!showRemainingTime) {
                         // Large "Fasting for" at top
                         Text(
                             "Fasting for",
@@ -812,45 +827,49 @@ fun FastingAppTimerScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     
                     // Toggle arrow INSIDE the circle
-                    Text(
-                        "⇅",
-                        fontSize = 24.sp,
-                        color = Color(0xFF4CAF50),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .clickable { onToggleTimeView() }
-                            .padding(2.dp)
-                    )
+                    if (isFastingStarted) {
+                        Text(
+                            "⇅",
+                            fontSize = 24.sp,
+                            color = Color(0xFF4CAF50),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .clickable { onToggleTimeView() }
+                                .padding(2.dp)
+                        )
+                    }
                     
                     Spacer(modifier = Modifier.height(6.dp))
                     
                     // Small time display at bottom (swaps with top)
-                    if (!showRemainingTime) {
-                        // Show small "Time remaining" at bottom
-                        Text(
-                            "until fast ends",
-                            fontSize = 9.sp,
-                            color = onSurfaceVariantColor
-                        )
-                        Text(
-                            String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = onBackgroundColor
-                        )
-                    } else {
-                        // Show small "Fasting for" at bottom
-                        Text(
-                            "fasting for",
-                            fontSize = 9.sp,
-                            color = onSurfaceVariantColor
-                        )
-                        Text(
-                            formatSeconds(elapsedSeconds.toLong()),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = onBackgroundColor
-                        )
+                    if (isFastingStarted) {
+                        if (!showRemainingTime) {
+                            // Show small "Time remaining" at bottom
+                            Text(
+                                "until fast ends",
+                                fontSize = 9.sp,
+                                color = onSurfaceVariantColor
+                            )
+                            Text(
+                                String.format("%02d:%02d", remainingSeconds / 3600, (remainingSeconds % 3600) / 60),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = onBackgroundColor
+                            )
+                        } else {
+                            // Show small "Fasting for" at bottom
+                            Text(
+                                "fasting for",
+                                fontSize = 9.sp,
+                                color = onSurfaceVariantColor
+                            )
+                            Text(
+                                formatSeconds(elapsedSeconds.toLong()),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = onBackgroundColor
+                            )
+                        }
                     }
                 }
                 
@@ -961,12 +980,14 @@ fun FastingAppTimerScreen(
             // End Fast button
             Button(
                 onClick = { onEndFast() },
+                enabled = isFastingStarted,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
                     .padding(horizontal = 32.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFF5252)
+                    containerColor = Color(0xFFFF5252),
+                    disabledContainerColor = Color(0xFFCCCCCC)
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -974,7 +995,7 @@ fun FastingAppTimerScreen(
                     "End Fast",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = if (isFastingStarted) Color.White else Color.Gray
                 )
             }
             
