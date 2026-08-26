@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -690,6 +691,11 @@ fun FastingAppTimerScreen(
     val onBackgroundColor = MaterialTheme.colorScheme.onBackground
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
     val circleTextColor = onBackgroundColor
+    val fastingTrackColor = if (bgColor.luminance() < 0.5f) {
+        onBackgroundColor.copy(alpha = 0.55f)
+    } else {
+        Color(0xFF1A1A2E)
+    }
     
     Box(
         modifier = Modifier
@@ -720,10 +726,9 @@ fun FastingAppTimerScreen(
                     val centerY = size.height / 2
                     val strokeWidth = 20.dp.toPx()
                     val radius = size.width / 2 - strokeWidth / 2
-                    val trackColor = Color(0xFF1A1A2E)
 
                     drawCircle(
-                        color = trackColor,
+                        color = fastingTrackColor,
                         radius = radius,
                         center = Offset(centerX, centerY),
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
