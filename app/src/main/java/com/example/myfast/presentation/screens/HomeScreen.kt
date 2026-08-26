@@ -690,24 +690,25 @@ fun FastingAppTimerScreen(
             
             Spacer(modifier = Modifier.height(20.dp))
             
-            // Large circle timer with clickable water drops inside
-            Box(
-                modifier = Modifier
-                    .size(280.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(
+            // Large circle timer with clickable water drops inside - only show if fasting has started
+            if (isFastingStarted) {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .scale(pulseScale.value)
+                        .size(280.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    val centerX = size.width / 2
-                    val centerY = size.height / 2
-                    val strokeWidth = 20.dp.toPx()  // Much wider outline
-                    val radius = size.width / 2 - strokeWidth / 2
-                    
-                    // Background circle with GREEN gradient outline
-                    val greenLight = Color(0xFF4CAF50)  // Light green
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .scale(pulseScale.value)
+                    ) {
+                        val centerX = size.width / 2
+                        val centerY = size.height / 2
+                        val strokeWidth = 20.dp.toPx()  // Much wider outline
+                        val radius = size.width / 2 - strokeWidth / 2
+                        
+                        // Background circle with GREEN gradient outline
+                        val greenLight = Color(0xFF4CAF50)  // Light green
                     val greenMedium = Color(0xFF388E3C) // Medium green
                     val greenDark = Color(0xFF1B5E20)   // Dark green
                     
@@ -902,6 +903,42 @@ fun FastingAppTimerScreen(
                                 .padding(2.dp)
                         )
                     }
+                }
+            }
+            } else {
+                // Show upcoming fast info when fast hasn't started
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        "Fast Scheduled",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = onBackgroundColor
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    val (startDate, startTime) = formatTimePickerDateTime(startDateTime)
+                    Text(
+                        "Starts",
+                        fontSize = 14.sp,
+                        color = onSurfaceVariantColor
+                    )
+                    Text(
+                        startDate,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = onBackgroundColor
+                    )
+                    Text(
+                        startTime,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = onBackgroundColor
+                    )
                 }
             }
             
