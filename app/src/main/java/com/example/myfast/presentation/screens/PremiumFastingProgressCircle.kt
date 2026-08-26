@@ -22,6 +22,37 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.cos
 import kotlin.math.sin
 
+// Poles of the diagonal gradient: magenta/pink at lower-left, blue at upper-right.
+// Canvas angle convention: 0deg = right (3 o'clock), increasing clockwise (y grows downward).
+internal const val GRADIENT_BLUE_POLE_DEG = 315f // upper-right
+internal val GradientMagenta = Color(0xFFFF2E93)
+internal val GradientBlue = Color(0xFF2E93FF)
+
+internal fun lerpChannel(a: Float, b: Float, t: Float) = a + (b - a) * t
+
+internal fun blendGradientColor(t: Float, alpha: Float = 1f): Color = Color(
+    red = lerpChannel(GradientMagenta.red, GradientBlue.red, t),
+    green = lerpChannel(GradientMagenta.green, GradientBlue.green, t),
+    blue = lerpChannel(GradientMagenta.blue, GradientBlue.blue, t),
+    alpha = alpha
+)
+
+/**
+ * Builds a seamless set of sweep-gradient color stops that smoothly cycles
+ * magenta -> purple -> blue -> purple -> magenta around the full circle, with
+ * blue peaking at the upper-right and magenta peaking at the lower-left
+ * (the two points sit directly opposite each other, so the purple blend
+ * appears naturally at the perpendicular points, with no hard seam).
+ */
+internal fun buildDiagonalGradientStops(alpha: Float = 1f, steps: Int = 36): List<Pair<Float, Color>> {
+    return (0..steps).map { i ->
+        val angleDeg = i * 360f / steps
+        val fraction = angleDeg / 360f
+        val t = (cos(Math.toRadians((angleDeg - GRADIENT_BLUE_POLE_DEG).toDouble())).toFloat() + 1f) / 2f
+        fraction to blendGradientColor(t, alpha)
+    }
+}
+
 @Composable
 fun PremiumFastingProgressCircle(
     elapsedSeconds: Int,
@@ -30,6 +61,10 @@ fun PremiumFastingProgressCircle(
     fastStartTime: Long = 0L
 ) {
     val progressPercent = minOf(1f, elapsedSeconds.toFloat() / goalSeconds)
+
+    // Gradient color stops are static, so compute them once.
+    val mainGradientStops = remember { buildDiagonalGradientStops().toTypedArray() }
+    val glowGradientStops = remember { buildDiagonalGradientStops(alpha = 0.3f).toTypedArray() }
     
     // Format times with memoization to prevent blinking
     val startTime = remember(fastStartTime) {
@@ -87,14 +122,8 @@ fun PremiumFastingProgressCircle(
                 // Draw glow layer
                 drawArc(
                     brush = Brush.sweepGradient(
-                        colors = listOf(
-                            Color(0xFF00B4FF).copy(alpha = 0.3f),
-                            Color(0xFF6D5FFF).copy(alpha = 0.3f),
-                            Color(0xFFAD00FF).copy(alpha = 0.3f),
-                            Color(0xFFFF006E).copy(alpha = 0.3f),
-                            Color(0xFF00B4FF).copy(alpha = 0.3f)
-                        ),
-                        center = Offset(centerX, centerY)
+                        *glowGradientStops,
+                        center = Offset(centerX, centerY),
                     ),
                     startAngle = -90f,
                     sweepAngle = progressPercent * 360f,
@@ -110,14 +139,8 @@ fun PremiumFastingProgressCircle(
                 // Draw main gradient progress ring
                 drawArc(
                     brush = Brush.sweepGradient(
-                        colors = listOf(
-                            Color(0xFF00B4FF),  // Electric blue
-                            Color(0xFF6D5FFF),  // Blue/violet
-                            Color(0xFFAD00FF),  // Purple
-                            Color(0xFFFF006E),  // Magenta/pink
-                            Color(0xFF00B4FF)   // Back to blue
-                        ),
-                        center = Offset(centerX, centerY)
+                        *mainGradientStops,
+                        center = Offset(centerX, centerY),
                     ),
                     startAngle = -90f,
                     sweepAngle = progressPercent * 360f,

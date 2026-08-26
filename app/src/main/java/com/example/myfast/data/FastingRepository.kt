@@ -52,4 +52,40 @@ class FastingRepository(context: Context) {
         }
         prefs.edit().putString("fast_records", recordsStr).apply()
     }
+
+    /**
+     * Persists the currently in-progress fast so it survives process death
+     * (e.g. the app being killed in the background). Without this, an active
+     * fast only lived in Compose's in-memory state and was lost whenever the
+     * HomeScreen composable was recreated from scratch.
+     */
+    fun saveActiveFast(startTime: Long, goalSeconds: Int, planName: String) {
+        prefs.edit()
+            .putBoolean("active_fast_in_progress", true)
+            .putLong("active_fast_start_time", startTime)
+            .putInt("active_fast_goal_seconds", goalSeconds)
+            .putString("active_fast_plan_name", planName)
+            .apply()
+    }
+
+    fun getActiveFast(): ActiveFast? {
+        if (!prefs.getBoolean("active_fast_in_progress", false)) return null
+        val startTime = prefs.getLong("active_fast_start_time", 0L)
+        val goalSeconds = prefs.getInt("active_fast_goal_seconds", 0)
+        val planName = prefs.getString("active_fast_plan_name", "16:8") ?: "16:8"
+        if (startTime <= 0L) return null
+        return ActiveFast(startTime, goalSeconds, planName)
+    }
+
+    fun clearActiveFast() {
+        prefs.edit()
+            .putBoolean("active_fast_in_progress", false)
+            .apply()
+    }
 }
+
+data class ActiveFast(
+    val startTime: Long,
+    val goalSeconds: Int,
+    val planName: String
+)

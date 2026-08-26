@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +22,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -93,11 +95,24 @@ fun HomeScreen() {
     var elapsedSeconds by remember { mutableStateOf(0) }
     var showRemainingTime by remember { mutableStateOf(false) }
     var goalSeconds by remember { mutableStateOf(57600) } // 16 hours default
-    var lastFastEndTime by remember { mutableStateOf(0L) }
+    var lastFastEndTime by remember { mutableStateOf<Long?>(null) }
     var fastStartTime by remember { mutableStateOf(0L) }
     var selectedPlanName by remember { mutableStateOf("16:8") }
     var goalReached by remember { mutableStateOf(false) }
     var showGoalReachedDialog by remember { mutableStateOf(false) }
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    // Restore any in-progress fast that was persisted before this composable
+    // (and its in-memory state) was recreated, e.g. after process death.
+    LaunchedEffect(Unit) {
+        repository.getActiveFast()?.let { activeFast ->
+            fastStartTime = activeFast.startTime
+            goalSeconds = activeFast.goalSeconds
+            selectedPlanName = activeFast.planName
+            elapsedSeconds = maxOf(0, ((System.currentTimeMillis() - activeFast.startTime) / 1000).toInt())
+            isTimerActive = true
+        }
+    }
     
     // End Fast dialog states
     var showEndFastConfirm by remember { mutableStateOf(false) }  // First step: End Fast or Cancel
@@ -110,14 +125,16 @@ fun HomeScreen() {
     var pickerHour by remember { mutableStateOf(0) }
     var pickerMinute by remember { mutableStateOf(0) }
     
-    // Initialize lastFastEndTime from last recorded fast
-    LaunchedEffect(Unit) {
-        val fastRecords = repository.getFastRecords()
-        if (fastRecords.isNotEmpty()) {
-            val lastFast = fastRecords.last()
-            val lastFastEndTimeFromRecord = lastFast.date.plusSeconds(lastFast.durationSeconds.toLong())
-            lastFastEndTime = lastFastEndTimeFromRecord.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        }
+    LaunchedEffect(refreshTrigger) {
+        lastFastEndTime = repository.getFastRecords()
+            .maxByOrNull { it.date.plusSeconds(it.durationSeconds.toLong()) }
+            ?.let { fast ->
+                fast.date.plusSeconds(fast.durationSeconds.toLong())
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            }
+
     }
     
     // Timer update
@@ -133,13 +150,12 @@ fun HomeScreen() {
             }
             delay(1000)
         }
+
     }
     
-    val timeSinceLastFast = if (lastFastEndTime > 0) {
-        (System.currentTimeMillis() - lastFastEndTime) / 1000
-    } else {
-        0L
-    }
+    val timeSinceLastFast = lastFastEndTime
+        ?.let { endTime -> ((System.currentTimeMillis() - endTime) / 1000).coerceAtLeast(0) }
+        ?: 0L
     
     // Show setup screen on first launch
     if (showSetup) {
@@ -208,11 +224,13 @@ fun HomeScreen() {
     } else {
         FastingAppHomeScreen(
             isFasting = isTimerActive,
+            hasRecordedFast = lastFastEndTime != null,
             timeSinceLastFast = timeSinceLastFast,
             onStartFast = {
                 isTimerActive = true
                 elapsedSeconds = 0
                 fastStartTime = System.currentTimeMillis()
+                repository.saveActiveFast(fastStartTime, goalSeconds, selectedPlanName)
             },
             onSelectPlan = { hours, planName ->
                 selectedPlanName = planName
@@ -220,6 +238,7 @@ fun HomeScreen() {
                 isTimerActive = true
                 elapsedSeconds = 0
                 fastStartTime = System.currentTimeMillis()
+                repository.saveActiveFast(fastStartTime, goalSeconds, selectedPlanName)
             }
         )
     }
@@ -290,7 +309,8 @@ fun HomeScreen() {
                     onClick = {
                         showSaveDeleteDialog = false
                         isTimerActive = false
-                        lastFastEndTime = System.currentTimeMillis()
+                        repository.clearActiveFast()
+                        refreshTrigger++
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -312,7 +332,8 @@ fun HomeScreen() {
                         )
                         repository.saveFastRecord(fastRecord)
                         isTimerActive = false
-                        lastFastEndTime = System.currentTimeMillis()
+                        repository.clearActiveFast()
+                        refreshTrigger++
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50)
@@ -478,6 +499,7 @@ fun HomeScreen() {
                             ).toInt()
                             goalSeconds = maxOf(0, newGoal)
                         }
+                        repository.saveActiveFast(fastStartTime, goalSeconds, selectedPlanName)
                         
                         showTimePicker = false
                     },
@@ -496,6 +518,7 @@ fun HomeScreen() {
 @Composable
 fun FastingAppHomeScreen(
     isFasting: Boolean,
+    hasRecordedFast: Boolean,
     timeSinceLastFast: Long,
     onStartFast: () -> Unit,
     onSelectPlan: (Int, String) -> Unit
@@ -528,7 +551,7 @@ fun FastingAppHomeScreen(
                 color = Color(0xFF4CAF50)
             )
         } else {
-            if (timeSinceLastFast > 0) {
+            if (hasRecordedFast) {
                 Text(
                     "Not Fasting For",
                     fontSize = 16.sp,
@@ -589,39 +612,6 @@ fun FastingAppHomeScreen(
         }
         
         Spacer(modifier = Modifier.height(32.dp))
-        
-        // Show "not fasting for" message instead of stages
-        if (timeSinceLastFast > 0) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "Not Fasting For",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val hours = timeSinceLastFast / 3600
-                    val minutes = (timeSinceLastFast % 3600) / 60
-                    Text(
-                        "${hours}h ${minutes}m",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.Black
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -696,7 +686,7 @@ fun FastingAppTimerScreen(
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
     val onBackgroundColor = MaterialTheme.colorScheme.onBackground
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val circleTextColor = Color.White
+    val circleTextColor = onBackgroundColor
     
     Box(
         modifier = Modifier
@@ -712,56 +702,35 @@ fun FastingAppTimerScreen(
         ) {
             Spacer(modifier = Modifier.height(20.dp))
             
-            // Large circle timer with clickable water drops inside
             Box(
                 modifier = Modifier
                     .size(280.dp),
                 contentAlignment = Alignment.Center
             ) {
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .scale(pulseScale.value)
-                    ) {
-                        val centerX = size.width / 2
-                        val centerY = size.height / 2
-                        val strokeWidth = 20.dp.toPx()  // Much wider outline
-                        val radius = size.width / 2 - strokeWidth / 2
-                        
-                        // Background circle with GREEN gradient outline
-                        val greenLight = Color(0xFF4CAF50)  // Light green
-                    val greenMedium = Color(0xFF388E3C) // Medium green
-                    val greenDark = Color(0xFF1B5E20)   // Dark green
-                    
+                val gradientStops = remember { buildDiagonalGradientStops().toTypedArray() }
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scale(pulseScale.value)
+                ) {
+                    val centerX = size.width / 2
+                    val centerY = size.height / 2
+                    val strokeWidth = 20.dp.toPx()
+                    val radius = size.width / 2 - strokeWidth / 2
+                    val trackColor = Color(0xFF1A1A2E)
+
                     drawCircle(
-                        color = greenLight,
+                        color = trackColor,
                         radius = radius,
                         center = Offset(centerX, centerY),
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
-                    
-                    // Progress arc with GREEN gradient (fills from light to dark)
-                    val progressGreen = when {
-                        progressPercent < 0.5f -> {
-                            val ratio = (progressPercent * 2)
-                            Color(
-                                red = (76 + (56 - 76) * ratio).toInt(),
-                                green = (175 + (142 - 175) * ratio).toInt(),
-                                blue = (80 + (60 - 80) * ratio).toInt()
-                            )
-                        }
-                        else -> {
-                            val ratio = ((progressPercent - 0.5f) * 2)
-                            Color(
-                                red = (56 + (27 - 56) * ratio).toInt(),
-                                green = (142 + (94 - 142) * ratio).toInt(),
-                                blue = (60 + (32 - 60) * ratio).toInt()
-                            )
-                        }
-                    }
-                    
+
                     drawArc(
-                        color = progressGreen,
+                        brush = Brush.sweepGradient(
+                            *gradientStops,
+                            center = Offset(centerX, centerY),
+                        ),
                         startAngle = -90f,
                         sweepAngle = progressPercent * 360f,
                         useCenter = false,
@@ -769,23 +738,19 @@ fun FastingAppTimerScreen(
                         size = Size(radius * 2, radius * 2),
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
-                    
-                    // Water drop markers at 0h, 2h, 5h, 8h, 12h - positioned inside the stroke
+
                     val totalHours = goalSeconds / 3600f
                     val dropHours = listOf(0f, 2f, 5f, 8f, 12f)
-                    
+
                     dropHours.forEach { hours ->
                         if (hours <= totalHours) {
                             val progressAtHour = (hours / totalHours) * 360f
                             val angle = -90f + progressAtHour
                             val rad = Math.toRadians(angle.toDouble())
-                            
-                            // Position inside the circle outline (on the stroke ring)
-                            val dropRadius = radius - strokeWidth / 3  // Inside the thick stroke
+                            val dropRadius = radius - strokeWidth / 3
                             val dropX = centerX + dropRadius * cos(rad).toFloat()
                             val dropY = centerY + dropRadius * sin(rad).toFloat()
-                            
-                            // Draw water drop
+
                             drawCircle(
                                 color = Color(0xFF2196F3),
                                 radius = 12.dp.toPx(),
@@ -887,7 +852,6 @@ fun FastingAppTimerScreen(
                         }
                     }
                 
-                // Clickable dots overlay - only show when fasting has started
                 if (isFastingStarted && goalSeconds > 0) {
                     val totalHours = goalSeconds / 3600f
                     val dropHours = listOf(0f, 2f, 5f, 8f, 12f)
