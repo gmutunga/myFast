@@ -3,8 +3,8 @@ package com.example.myfast.presentation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -25,8 +25,8 @@ import com.example.myfast.ui.theme.MyFastTheme
 
 sealed class NavItem(val route: String, val label: String, val icon: ImageVector) {
     object Home : NavItem("home", "Home", Icons.Default.Home)
-    object History : NavItem("history", "History", Icons.Default.Favorite)
-    object Dashboard : NavItem("dashboard", "Dashboard", Icons.Default.Star)
+    object History : NavItem("history", "History", Icons.Default.AccessTime)
+    object Dashboard : NavItem("dashboard", "Dashboard", Icons.Default.Person)
     object Settings : NavItem("settings", "Settings", Icons.Default.Settings)
 }
 
